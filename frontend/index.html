@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Videodownload</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0d0d;
+    --surface: #161616;
+    --surface2: #1e1e1e;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #f0f0f0;
+    --muted: #888;
+    --accent: #e1306c;
+    --accent2: #f77737;
+    --green: #34d399;
+    --radius: 12px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 3rem 1rem 4rem;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 2.5rem;
+  }
+
+  .logo-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+
+  .logo-text { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; }
+  .logo-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.75rem;
+    width: 100%;
+    max-width: 560px;
+  }
+
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+
+  input[type="url"], input[type="text"] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 14px;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  input:focus { border-color: var(--accent); }
+  input::placeholder { color: #444; }
+
+  .quality-row {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin: 1rem 0 1.25rem;
+  }
+
+  .q-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .q-btn:hover { border-color: var(--accent); color: var(--text); }
+  .q-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+    font-weight: 500;
+  }
+
+  .btn-download {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    background: linear-gradient(135deg, #e1306c, #f77737);
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .15s, transform .1s;
+  }
+  .btn-download:hover { opacity: .9; }
+  .btn-download:active { transform: scale(.98); }
+  .btn-download:disabled { opacity: .4; cursor: default; }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+
+  /* Status */
+  .status {
+    display: none;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 13px;
+    margin-top: 1rem;
+  }
+  .status.loading { display: flex; align-items: center; gap: 10px; background: var(--surface2); color: var(--muted); }
+  .status.error { display: block; background: rgba(220,39,74,.12); color: #f87171; border: 1px solid rgba(220,39,74,.25); }
+  .status.success { display: block; background: rgba(52,211,153,.08); border: 1px solid rgba(52,211,153,.2); }
+
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,.15);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Result card */
+  .result-card {
+    display: flex; gap: 12px; align-items: flex-start;
+    margin-bottom: 1rem;
+  }
+  .result-thumb {
+    width: 72px; height: 72px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: var(--surface2);
+  }
+  .result-meta { flex: 1; min-width: 0; }
+  .result-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .result-info { font-size: 12px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
+  .result-info span { display: flex; align-items: center; gap: 4px; }
+
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .btn-action {
+    flex: 1; min-width: 120px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    transition: border-color .15s, background .15s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn-action:hover { border-color: var(--accent); background: rgba(225,48,108,.08); }
+  .btn-action.primary {
+    background: linear-gradient(135deg, #e1306c, #f77737);
+    border-color: transparent;
+    color: white;
+  }
+  .btn-action.primary:hover { opacity: .9; }
+
+  .badge {
+    display: inline-block;
+    background: rgba(52,211,153,.15);
+    color: var(--green);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+
+  .footer {
+    margin-top: 3rem;
+    font-size: 12px;
+    color: #444;
+    text-align: center;
+    line-height: 1.8;
+  }
+  .footer a { color: #666; text-decoration: none; }
+  .footer a:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="logo">
+  <div class="logo-icon">⬇</div>
+  <div>
+    <div class="logo-text">Videodownload</div>
+    <div class="logo-sub">Self-hosted · No limits · github.com/Cheesehead100</div>
+  </div>
+</div>
+
+<div class="card">
+  <label for="url-input">Instagram URL</label>
+  <input type="url" id="url-input" placeholder="https://www.instagram.com/reel/..." autocomplete="off" />
+
+  <div style="margin-top:1.25rem;">
+    <label>Quality</label>
+    <div class="quality-row" id="quality-row">
+      <button class="q-btn" data-q="best">Best</button>
+      <button class="q-btn active" data-q="720p">720p</button>
+      <button class="q-btn" data-q="480p">480p</button>
+      <button class="q-btn" data-q="360p">360p</button>
+      <button class="q-btn" data-q="audio">Audio only</button>
+    </div>
+  </div>
+
+  <button class="btn-download" id="dl-btn" onclick="startDownload()">
+    ⬇ Download
+  </button>
+
+  <div class="status loading" id="status-loading">
+    <div class="spinner"></div>
+    <span id="loading-text">Fetching video…</span>
+  </div>
+
+  <div class="status error" id="status-error"></div>
+
+  <div class="status success" id="status-success">
+    <div class="badge">✓ Ready</div>
+    <div class="result-card" id="result-card"></div>
+    <div class="btn-row" id="btn-row"></div>
+  </div>
+</div>
+
+<div class="footer">
+  Self-hosted on your own server · Powered by <a href="https://github.com/yt-dlp/yt-dlp" target="_blank">yt-dlp</a><br>
+  <a href="/docs" target="_blank">API docs</a> · <a href="https://github.com/Cheesehead100/Videodownload" target="_blank">GitHub</a>
+</div>
+
+<script>
+  const API_BASE = window.location.origin;
+  let selectedQuality = '720p';
+  let apiKey = new URLSearchParams(location.search).get('key') || '';
+
+  // Quality selector
+  document.getElementById('quality-row').addEventListener('click', e => {
+    const btn = e.target.closest('.q-btn');
+    if (!btn) return;
+    document.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedQuality = btn.dataset.q;
+  });
+
+  // Enter key trigger
+  document.getElementById('url-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') startDownload();
+  });
+
+  function show(id) {
+    ['status-loading', 'status-error', 'status-success'].forEach(s => {
+      document.getElementById(s).style.display = s === id ? '' : 'none';
+    });
+    if (id === 'status-loading') {
+      document.getElementById(id).style.display = 'flex';
+    }
+  }
+
+  function hide() {
+    ['status-loading', 'status-error', 'status-success'].forEach(s => {
+      document.getElementById(s).style.display = 'none';
+    });
+  }
+
+  function fmt(seconds) {
+    if (!seconds) return '';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  async function startDownload() {
+    const url = document.getElementById('url-input').value.trim();
+    if (!url) return;
+
+    const btn = document.getElementById('dl-btn');
+    btn.disabled = true;
+    document.getElementById('loading-text').textContent = 'Fetching video…';
+    show('status-loading');
+
+    try {
+      const body = { url, quality: selectedQuality };
+      if (apiKey) body.api_key = apiKey;
+
+      const res = await fetch(`${API_BASE}/download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        show('status-error');
+        document.getElementById('status-error').textContent =
+          data.detail || 'Download failed — check the URL and try again.';
+        return;
+      }
+
+      // Build result card
+      const thumb = data.thumbnail
+        ? `<img class="result-thumb" src="${data.thumbnail}" alt="thumbnail" onerror="this.style.display='none'">`
+        : '';
+
+      const infoItems = [
+        data.uploader ? `<span>👤 ${data.uploader}</span>` : '',
+        data.duration_seconds ? `<span>⏱ ${fmt(data.duration_seconds)}</span>` : '',
+        data.file_size_mb ? `<span>💾 ${data.file_size_mb} MB</span>` : '',
+      ].filter(Boolean).join('');
+
+      document.getElementById('result-card').innerHTML = `
+        ${thumb}
+        <div class="result-meta">
+          <div class="result-title">${data.title || 'Instagram video'}</div>
+          <div class="result-info">${infoItems}</div>
+        </div>
+      `;
+
+      const dlUrl = `${API_BASE}${data.download_url}`;
+      const streamUrl = `${API_BASE}${data.stream_url}`;
+
+      document.getElementById('btn-row').innerHTML = `
+        <a class="btn-action primary" href="${dlUrl}" download="${data.filename}">
+          ⬇ Save to device
+        </a>
+        <a class="btn-action" href="${streamUrl}" target="_blank">
+          ▶ Play in browser
+        </a>
+      `;
+
+      show('status-success');
+      document.getElementById('status-success').style.display = 'block';
+
+    } catch (err) {
+      show('status-error');
+      document.getElementById('status-error').textContent =
+        'Network error — is the server running? ' + err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>

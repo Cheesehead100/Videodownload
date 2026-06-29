@@ -1,0 +1,46 @@
+name: Weekly yt-dlp update
+
+# yt-dlp releases updates frequently to stay ahead of Instagram's anti-bot changes.
+# This workflow bumps the pinned version in requirements.txt every Monday
+# and opens a PR so you can review before merging.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # Every Monday at 06:00 UTC
+  workflow_dispatch:        # Allow manual trigger
+
+jobs:
+  update-ytdlp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Get latest yt-dlp version
+        id: latest
+        run: |
+          VERSION=$(pip index versions yt-dlp 2>/dev/null | grep -oP '(?<=Available versions: )[^,]+' | head -1)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update requirements.txt
+        run: |
+          sed -i "s/yt-dlp>=.*/yt-dlp>=${{ steps.latest.outputs.version }}/" server/requirements.txt
+          echo "Updated yt-dlp to ${{ steps.latest.outputs.version }}"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: bump yt-dlp to ${{ steps.latest.outputs.version }}"
+          title: "⬆️ Update yt-dlp to ${{ steps.latest.outputs.version }}"
+          body: |
+            Auto-generated weekly update for yt-dlp.
+
+            yt-dlp releases frequently to keep up with Instagram's anti-bot changes.
+            Review the [yt-dlp changelog](https://github.com/yt-dlp/yt-dlp/releases) then merge.
+          branch: "chore/bump-ytdlp"
+          delete-branch: true

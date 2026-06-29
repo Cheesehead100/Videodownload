@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: videodownload
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: VDLOAD_API_KEY
+        generateValue: true
+      - key: FILE_TTL_SECONDS
+        value: 600
+    healthCheckPath: /health
+    autoDeploy: true
