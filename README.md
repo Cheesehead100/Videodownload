@@ -181,9 +181,32 @@ For bare-metal, add a cron job:
 
 ## Limitations
 
-- **Public posts only** — private accounts require your own Instagram session cookie
-- Downloads are **ephemeral** — files are deleted after 10 minutes
-- Stories require a logged-in session cookie in most cases
+- Instagram now blocks most anonymous scraping, even for public reels/posts ("Instagram sent an empty media response"). Add a cookies file (below) to fix this.
+- Private accounts require your own Instagram session cookie regardless.
+- Downloads are **ephemeral** — files are deleted after 10 minutes.
+- Stories require a logged-in session cookie in most cases.
+
+---
+
+## Authenticating with Instagram (cookies)
+
+Instagram increasingly requires a logged-in session even to serve public post data to yt-dlp. If `/download` fails with `Instagram sent an empty media response`, export your Instagram session cookies and give them to the server.
+
+1. **Export cookies** from a browser where you're logged into Instagram:
+   - Chrome/Edge/Firefox extension: "Get cookies.txt LOCALLY" (or similar) — export in Netscape format for `instagram.com`.
+   - Save the file as `cookies.txt`.
+2. **Provide it to the server:**
+   - **Render:** Dashboard → your service → **Environment** → **Secret Files** → add a file named `cookies.txt` with the exported contents. Render mounts it at `/etc/secrets/cookies.txt`, which the server reads automatically — just restart the service afterward.
+   - **Docker/VM:** mount the file into the container and set `COOKIES_FILE` to its path:
+     ```bash
+     docker run -d -p 8000:8000 \
+       -v /path/to/cookies.txt:/run/secrets/cookies.txt:ro \
+       -e COOKIES_FILE=/run/secrets/cookies.txt \
+       videodownload
+     ```
+3. **Verify:** `GET /health` returns `"cookies_configured": true` once the file is detected.
+
+Cookies expire periodically (Instagram sessions typically last weeks) — re-export and re-upload if downloads start failing with auth errors again. Treat `cookies.txt` as a secret; it's equivalent to your Instagram login session.
 
 ---
 

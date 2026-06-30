@@ -45,6 +45,12 @@ FILE_TTL = int(os.getenv("FILE_TTL_SECONDS", 600))
 # Optional API key — set env var VDLOAD_API_KEY to protect the endpoint
 API_KEY = os.getenv("VDLOAD_API_KEY", "")
 
+# Optional Instagram cookies file (Netscape format) for authenticated scraping.
+# Instagram now blocks most anonymous yt-dlp requests with "empty media response".
+# On Render, upload as a Secret File named "cookies.txt" — it's mounted at
+# /etc/secrets/cookies.txt automatically. Override the path with COOKIES_FILE.
+COOKIES_FILE = os.getenv("COOKIES_FILE", "/etc/secrets/cookies.txt")
+
 # Allow all origins so the iPhone Shortcut + web UI can both reach the API
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
 
@@ -122,6 +128,13 @@ MOBILE_UA = (
     "Version/17.4 Mobile/15E148 Safari/604.1"
 )
 
+def cookie_opts() -> dict:
+    """Attach Instagram session cookies if a cookies file is present."""
+    if Path(COOKIES_FILE).is_file():
+        return {"cookiefile": COOKIES_FILE}
+    return {}
+
+
 def ydl_opts(out_dir: Path, quality: str) -> dict:
     fmt = {
         "best":  "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
@@ -145,6 +158,7 @@ def ydl_opts(out_dir: Path, quality: str) -> dict:
             "key": "FFmpegVideoConvertor",
             "preferedformat": "mp4",
         }],
+        **cookie_opts(),
     }
 
 async def run_in_thread(fn, *args):
@@ -161,6 +175,7 @@ def _do_info(url: str) -> dict:
         "no_warnings": True,
         "skip_download": True,
         "http_headers": {"User-Agent": MOBILE_UA},
+        **cookie_opts(),
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         return ydl.extract_info(url, download=False)
@@ -187,6 +202,7 @@ def health():
         "status": "ok",
         "yt_dlp_version": yt_dlp.version.__version__,
         "file_ttl_seconds": FILE_TTL,
+        "cookies_configured": Path(COOKIES_FILE).is_file(),
     }
 
 
