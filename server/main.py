@@ -18,6 +18,7 @@ Render / Railway: see render.yaml / README.md
 
 import os
 import re
+import shutil
 import uuid
 import time
 import asyncio
@@ -50,6 +51,13 @@ API_KEY = os.getenv("VDLOAD_API_KEY", "")
 # On Render, upload as a Secret File named "cookies.txt" — it's mounted at
 # /etc/secrets/cookies.txt automatically. Override the path with COOKIES_FILE.
 COOKIES_FILE = os.getenv("COOKIES_FILE", "/etc/secrets/cookies.txt")
+
+# yt-dlp persists any updated Set-Cookie values back to the cookiefile after each
+# session — but Secret Files on Render are mounted read-only. Copy to a writable
+# path at startup and point yt-dlp there instead.
+RUNTIME_COOKIES_FILE = DOWNLOAD_DIR / ".cookies_runtime.txt"
+if Path(COOKIES_FILE).is_file():
+    shutil.copy2(COOKIES_FILE, RUNTIME_COOKIES_FILE)
 
 # Allow all origins so the iPhone Shortcut + web UI can both reach the API
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
@@ -130,8 +138,8 @@ MOBILE_UA = (
 
 def cookie_opts() -> dict:
     """Attach Instagram session cookies if a cookies file is present."""
-    if Path(COOKIES_FILE).is_file():
-        return {"cookiefile": COOKIES_FILE}
+    if RUNTIME_COOKIES_FILE.is_file():
+        return {"cookiefile": str(RUNTIME_COOKIES_FILE)}
     return {}
 
 
@@ -202,7 +210,7 @@ def health():
         "status": "ok",
         "yt_dlp_version": yt_dlp.version.__version__,
         "file_ttl_seconds": FILE_TTL,
-        "cookies_configured": Path(COOKIES_FILE).is_file(),
+        "cookies_configured": RUNTIME_COOKIES_FILE.is_file(),
     }
 
 
