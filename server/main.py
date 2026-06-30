@@ -225,27 +225,32 @@ async def get_info(
 
     try:
         info = await run_in_thread(_do_info, url)
+        if not info:
+            raise HTTPException(status_code=422, detail="yt-dlp returned no metadata for this URL")
+
+        qualities = sorted(set(
+            f"{f['height']}p"
+            for f in info.get("formats", [])
+            if f.get("height") and f.get("ext") == "mp4"
+        ), key=lambda x: int(x[:-1]), reverse=True)
+
+        return InfoResponse(
+            title=(info.get("title") or info.get("description", ""))[:120],
+            uploader=info.get("uploader"),
+            duration_seconds=info.get("duration"),
+            thumbnail=info.get("thumbnail"),
+            upload_date=info.get("upload_date"),
+            view_count=info.get("view_count"),
+            like_count=info.get("like_count"),
+            available_qualities=qualities or ["720p", "480p", "360p"],
+        )
+    except HTTPException:
+        raise
     except yt_dlp.utils.DownloadError as e:
         raise HTTPException(status_code=422, detail=f"yt-dlp: {e}")
     except Exception as e:
+        log.exception("Unexpected error in /info")
         raise HTTPException(status_code=500, detail=str(e))
-
-    qualities = sorted(set(
-        f"{f['height']}p"
-        for f in info.get("formats", [])
-        if f.get("height") and f.get("ext") == "mp4"
-    ), key=lambda x: int(x[:-1]), reverse=True)
-
-    return InfoResponse(
-        title=(info.get("title") or info.get("description", ""))[:120],
-        uploader=info.get("uploader"),
-        duration_seconds=info.get("duration"),
-        thumbnail=info.get("thumbnail"),
-        upload_date=info.get("upload_date"),
-        view_count=info.get("view_count"),
-        like_count=info.get("like_count"),
-        available_qualities=qualities or ["720p", "480p", "360p"],
-    )
 
 
 @app.post("/download", response_model=DownloadResponse, tags=["download"])
@@ -267,41 +272,42 @@ async def download_video(req: DownloadRequest, background_tasks: BackgroundTasks
     try:
         log.info(f"Download start │ {req.url} │ quality={req.quality}")
         info = await run_in_thread(_do_download, req.url, opts)
+
+        files = list(session.iterdir())
+        if not files:
+            raise HTTPException(status_code=500, detail="Download succeeded but no file found")
+
+        mp4_files = [f for f in files if f.suffix == ".mp4"]
+        downloaded = mp4_files[0] if mp4_files else files[0]
+
+        size_mb = round(downloaded.stat().st_size / (1024 * 1024), 2)
+        file_id = f"{session.name}/{downloaded.name}"
+
+        background_tasks.add_task(purge_old_files)
+
+        log.info(f"Download done  │ {downloaded.name} │ {size_mb} MB")
+
+        return DownloadResponse(
+            status="ok",
+            download_url=f"/files/{file_id}?dl=1",
+            stream_url=f"/files/{file_id}",
+            filename=downloaded.name,
+            file_size_mb=size_mb,
+            duration_seconds=info.get("duration"),
+            title=(info.get("title") or info.get("description", ""))[:120],
+            thumbnail=info.get("thumbnail"),
+            uploader=info.get("uploader"),
+        )
+    except HTTPException:
+        shutil.rmtree(session, ignore_errors=True)
+        raise
     except yt_dlp.utils.DownloadError as e:
-        session.rmdir()
+        shutil.rmtree(session, ignore_errors=True)
         raise HTTPException(status_code=422, detail=f"yt-dlp failed: {e}")
     except Exception as e:
-        try:
-            session.rmdir()
-        except Exception:
-            pass
+        log.exception("Unexpected error in /download")
+        shutil.rmtree(session, ignore_errors=True)
         raise HTTPException(status_code=500, detail=str(e))
-
-    files = list(session.iterdir())
-    if not files:
-        raise HTTPException(status_code=500, detail="Download succeeded but no file found")
-
-    mp4_files = [f for f in files if f.suffix == ".mp4"]
-    downloaded = mp4_files[0] if mp4_files else files[0]
-
-    size_mb = round(downloaded.stat().st_size / (1024 * 1024), 2)
-    file_id = f"{session.name}/{downloaded.name}"
-
-    background_tasks.add_task(purge_old_files)
-
-    log.info(f"Download done  │ {downloaded.name} │ {size_mb} MB")
-
-    return DownloadResponse(
-        status="ok",
-        download_url=f"/files/{file_id}?dl=1",
-        stream_url=f"/files/{file_id}",
-        filename=downloaded.name,
-        file_size_mb=size_mb,
-        duration_seconds=info.get("duration"),
-        title=(info.get("title") or info.get("description", ""))[:120],
-        thumbnail=info.get("thumbnail"),
-        uploader=info.get("uploader"),
-    )
 
 
 @app.get("/files/{session}/{filename}", tags=["files"])
