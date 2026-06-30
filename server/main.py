@@ -234,10 +234,11 @@ async def get_info(
             if f.get("height") and f.get("ext") == "mp4"
         ), key=lambda x: int(x[:-1]), reverse=True)
 
+        d = info.get("duration")
         return InfoResponse(
             title=(info.get("title") or info.get("description", ""))[:120],
             uploader=info.get("uploader"),
-            duration_seconds=info.get("duration"),
+            duration_seconds=int(d) if d is not None else None,
             thumbnail=info.get("thumbnail"),
             upload_date=info.get("upload_date"),
             view_count=info.get("view_count"),
@@ -287,13 +288,14 @@ async def download_video(req: DownloadRequest, background_tasks: BackgroundTasks
 
         log.info(f"Download done  │ {downloaded.name} │ {size_mb} MB")
 
+        d = info.get("duration")
         return DownloadResponse(
             status="ok",
             download_url=f"/files/{file_id}?dl=1",
             stream_url=f"/files/{file_id}",
             filename=downloaded.name,
             file_size_mb=size_mb,
-            duration_seconds=info.get("duration"),
+            duration_seconds=int(d) if d is not None else None,
             title=(info.get("title") or info.get("description", ""))[:120],
             thumbnail=info.get("thumbnail"),
             uploader=info.get("uploader"),
